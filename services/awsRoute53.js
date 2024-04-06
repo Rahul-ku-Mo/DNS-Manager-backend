@@ -1,6 +1,8 @@
 const {
   Route53Client,
   ChangeResourceRecordSetsCommand,
+  CreateHostedZoneCommand,
+  ListHostedZonesByNameCommand,
 } = require("@aws-sdk/client-route-53");
 
 exports.client = new Route53Client({
@@ -11,7 +13,7 @@ exports.client = new Route53Client({
 
 exports.prepareRecord = (record) => {
   let resourceRecords;
-  let recordName = `${record.domain}.mytestprotocol.com.`;
+  let recordName = `${record.domain}`;
 
   if (record.type === "MX") {
     resourceRecords = [{ Value: `${record.priority} ${record.value}` }];
@@ -39,19 +41,19 @@ exports.prepareRecord = (record) => {
   return { resourceRecords, recordName };
 };
 
-exports.createRoute53Record = async (record) => {
-  const { resourceRecords, recordName } = this.prepareRecord(record);
+exports.createRoute53Record = async (recordParams) => {
+  const { resourceRecords, recordName } = this.prepareRecord(recordParams);
 
   const params = {
-    HostedZoneId: process.env.HOSTED_ZONE_ID,
+    HostedZoneId: recordParams.HostedZoneId,
     ChangeBatch: {
       Changes: [
         {
           Action: "CREATE",
           ResourceRecordSet: {
             Name: recordName,
-            Type: record.type,
-            TTL: parseInt(record.ttl),
+            Type: recordParams.type,
+            TTL: parseInt(recordParams.ttl),
             ResourceRecords: resourceRecords,
           },
         },
@@ -135,4 +137,64 @@ exports.createRoute53BulkRecord = async (records) => {
 
   const command = new ChangeResourceRecordSetsCommand(params);
   return await this.client.send(command);
+};
+
+exports.getHostedZoneId = async (dnsName, hostedZoneId, maxItems) => {
+  const params = {
+    DNSName: dnsName,
+    HostedZoneId: hostedZoneId,
+    MaxItems: maxItems,
+  };
+
+  try {
+    const command = new ListHostedZonesByNameCommand(params);
+    const response = await client.send(command);
+
+    if (
+      response.HostedZones.length > 0 &&
+      response.HostedZones[0].Name === `${dnsName}.`
+    ) {
+      return response.HostedZones[0].Id.split("/").pop();
+    } else {
+      throw new Error(`No hosted zone found with the DNS name: ${dnsName}`);
+    }
+  } catch (error) {
+    console.error(error);
+  }
+};
+
+exports.createHostedZone = async (hostedZoneData) => {
+  const {
+    name,
+    // vpcId,
+    // vpcRegion,
+    // callerReference,
+
+    delegationSetId,
+  } = hostedZoneData;
+
+  const params = {
+    Name: name,
+    // VPC: {
+    //   VPCRegion: vpcRegion,
+    //   VPCId: vpcId,
+    // },
+    CallerReference: new Date().getTime().toString(),
+    DelegationSetId: delegationSetId,
+  };
+  const command = new CreateHostedZoneCommand(params);
+
+  return await this.client.send(command);
+};
+
+exports.createHostedZoneAndRecord = async (hostedZoneData, recordData) => {
+  const hostedZone = await this.createHostedZone(hostedZoneData);
+  const hostedZoneId = hostedZone.HostedZone.Id.split("/").pop();
+
+  const recordParams = {
+    ...recordData,
+    HostedZoneId: hostedZoneId,
+  };
+
+  return await this.createRoute53Record(recordParams);
 };

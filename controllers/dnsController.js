@@ -1,16 +1,17 @@
 const { prisma } = require("../db");
 const {
-  createRoute53Record,
+  createHostedZoneAndRecord,
   updateRoute53Record,
   deleteRoute53Record,
   createRoute53BulkRecord,
 } = require("../services/awsRoute53");
 
 exports.createRecord = async (req, res) => {
-  const { record } = req.body;
-
+  const { hostedZoneData, record } = req.body;
+  
   try {
-    const awsResponse = await createRoute53Record(record);
+    const awsResponse = await createHostedZoneAndRecord(hostedZoneData, record);
+    
     const newRecord = await prisma.dNSRecord.create({
       data: {
         domain: record.domain,
@@ -20,6 +21,7 @@ exports.createRecord = async (req, res) => {
       },
     });
 
+  
     res.status(201).json({ message: "success", data: newRecord, awsResponse });
   } catch (error) {
     res.status(500).json({ message: "error", data: error.message });

@@ -24,8 +24,6 @@ exports.createSendToken = (user, res) => {
 };
 
 exports.signup = async (req, res) => {
-  console.log(req.body);
-
   const { email, password, firstname, lastname } = req.body;
 
   //1.check for existing user
