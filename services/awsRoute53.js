@@ -68,8 +68,10 @@ exports.createRoute53Record = async (recordParams) => {
 exports.deleteRoute53Record = async (record) => {
   const { resourceRecords, recordName } = this.prepareRecord(record);
 
+  const hostedZoneId = await this.getHostedZoneId(recordName, 1);
+
   const params = {
-    HostedZoneId: process.env.HOSTED_ZONE_ID,
+    HostedZoneId: hostedZoneId,
     ChangeBatch: {
       Changes: [
         {
@@ -92,8 +94,10 @@ exports.deleteRoute53Record = async (record) => {
 exports.updateRoute53Record = async (record) => {
   const { resourceRecords, recordName } = this.prepareRecord(record);
 
+  const hostedZoneId = await this.getHostedZoneId(recordName, 1);
+
   const params = {
-    HostedZoneId: process.env.HOSTED_ZONE_ID,
+    HostedZoneId: hostedZoneId,
     ChangeBatch: {
       Changes: [
         {
@@ -139,16 +143,15 @@ exports.createRoute53BulkRecord = async (records) => {
   return await this.client.send(command);
 };
 
-exports.getHostedZoneId = async (dnsName, hostedZoneId, maxItems) => {
+exports.getHostedZoneId = async (dnsName, maxItems) => {
   const params = {
     DNSName: dnsName,
-    HostedZoneId: hostedZoneId,
     MaxItems: maxItems,
   };
 
   try {
     const command = new ListHostedZonesByNameCommand(params);
-    const response = await client.send(command);
+    const response = await this.client.send(command);
 
     if (
       response.HostedZones.length > 0 &&
